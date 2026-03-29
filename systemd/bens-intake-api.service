@@ -1,0 +1,26 @@
+[Unit]
+Description=BENS Intake API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=steveadmin
+Group=steveadmin
+WorkingDirectory=/opt/bens-intake/current/app
+EnvironmentFile=/etc/bens-intake.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/bens-intake/shared/venv/bin/python /opt/bens-intake/current/app/intake_api.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/bens-intake/shared/logs /opt/bens-intake/shared/tmp
+UMask=027
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

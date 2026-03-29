@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+import os
+import time
+import json
+import hashlib
+import requests
+import pymysql
+from pymysql.cursors import DictCursor
+
+DB_HOST = os.environ["DB_HOST"]
+DB_PORT = int(os.environ["DB_PORT"])
+DB_NAME = os.environ["DB_NAME"]
+DB_USER = os.environ["DB_USER"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+
+CRM_BASE = os.environ["CRM_BASE"]
+CRM_USER = os.environ["CRM_USER"]
+CRM_PASS = os.environ["CRM_PASS"]
+
+
+def db():
+    return pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        charset="utf8mb4",
+        cursorclass=DictCursor,
+        autocommit=False,
+        connect_timeout=5,
+        read_timeout=10,
+        write_timeout=10,
+    )
+
+
+def login():
+    payload = {
+        "method": "login",
+        "input_type": "JSON",
+        "response_type": "JSON",
+        "rest_data": json.dumps({
+            "user_auth": {
+                "user_name": CRM_USER,
+                "password": hashlib.md5(CRM_PASS.encode()).hexdigest()
+            },
+            "application_name": "intake"
+        })
+    }
+
+    r = requests.post(f"{CRM_BASE}/service/v4_1/rest.php", data=payload, timeout=10)
+    r.raise_for_status()
+    j = r.json()
+
+    if "id" not in j:
+        raise RuntimeError(f"login_failed: {j}")
+
+    return j["id"]
+
+
+def set_lead(session, row):
+    lead = {
+        "last_name": row["name"],
+        "account_name": row["company"],
+        "email1": row["email"],
+        "phone_work": row["phone"] or "",
+        "industry": row["industry"] or "",
+        "description": row["description"] or "",
+        "lead_source": "Web Site",
+        "status": "New",
+    }
+
+    payload = {
+        "method": "set_entry",
+        "input_type": "JSON",
+        "response_type": "JSON",
+        "rest_data": json.dumps({
+            "session": session,
+            "module_name": "Leads",
+            "name_value_list": [{"name": k, "value": v} for k, v in lead.items()]
+        })
+    }
+
+    r = requests.post(f"{CRM_BASE}/service/v4_1/rest.php", data=payload, timeout=10)
+    r.raise_for_status()
+    j = r.json()
+
+    if "id" not in j:
+        raise RuntimeError(f"set_entry_failed: {j}")
+
+    return j["id"]
+
+
+def loop():
+    while True:
+        conn = db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT *
+                    FROM leads_queue
+                    WHERE processed = 0
+                    ORDER BY id ASC
+                    LIMIT 10
+                """)
+                rows = cur.fetchall()
+
+                if not rows:
+                    conn.commit()
+                    time.sleep(5)
+                    continue
+
+                session = login()
+
+                for row in rows:
+                    try:
+                        crm_id = set_lead(session, row)
+                        cur.execute("""
+                            UPDATE leads_queue
+                            SET processed = 1,
+                                processed_at = NOW(),
+                                crm_id = %s,
+                                last_error = NULL
+                            WHERE id = %s
+                        """, (crm_id, row["id"]))
+                    except Exception as e:
+                        cur.execute("""
+                            UPDATE leads_queue
+                            SET last_error = %s,
+                                retry_count = retry_count + 1
+                            WHERE id = %s
+                        """, (str(e)[:500], row["id"]))
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        time.sleep(2)
+
+
+if __name__ == "__main__":
+    loop()

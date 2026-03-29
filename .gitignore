@@ -1,3 +1,37 @@
-*
-!index.php
-!.gitignore
+# macOS filesystem junk
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100/
+.Trashes/
+.fseventsd
+
+# Editor and shell temp files
+*.swp
+*.swo
+*~
+
+# Logs and local environment files
+*.log
+.env
+.env.*
+!.env.example
+*.live
+*.bak
+*.tar
+*.tgz
+
+# Common local dependency/build directories
+node_modules/
+vendor/
+coverage/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local-only project helpers
+CODEX_FIXES_BRIEF.md
+verify-contact-flow.sh

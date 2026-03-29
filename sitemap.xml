@@ -1,0 +1,40 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/includes/functions.php';
+
+header('Content-Type: application/xml; charset=UTF-8');
+
+$lastModified = gmdate(
+    'c',
+    max(
+        (int) @filemtime(__DIR__ . '/includes/page-definitions.php'),
+        (int) @filemtime(__FILE__)
+    )
+);
+
+$exclude = ['privacy-policy', 'terms'];
+$uniquePages = [];
+foreach (page_catalog() as $slug => $item) {
+    if (in_array($slug, $exclude, true)) {
+        continue;
+    }
+
+    $path = (string) ($item['path'] ?? '');
+    if ($path === '' || isset($uniquePages[$path])) {
+        continue;
+    }
+
+    $uniquePages[$path] = $item;
+}
+
+echo '<?xml version="1.0" encoding="UTF-8"?>';
+?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<?php foreach ($uniquePages as $item): ?>
+  <url>
+    <loc><?= e(absolute_url($item['path'])) ?></loc>
+    <lastmod><?= e($lastModified) ?></lastmod>
+  </url>
+<?php endforeach; ?>
+</urlset>

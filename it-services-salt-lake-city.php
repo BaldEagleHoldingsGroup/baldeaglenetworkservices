@@ -2,4 +2,4 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/functions.php';
-render_site_page(page_definition('home'));
+render_site_page(page_definition('it-services-salt-lake-city'));
