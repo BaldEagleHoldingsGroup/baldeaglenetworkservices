@@ -7,10 +7,20 @@
 .Trashes/
 .fseventsd
 
+# Windows junk
+Thumbs.db
+Desktop.ini
+
 # Editor and shell temp files
 *.swp
 *.swo
 *~
+*.tmp
+*.temp
+
+# IDE settings
+.vscode/
+.idea/
 
 # Logs and local environment files
 *.log
@@ -18,13 +28,14 @@
 .env.*
 !.env.example
 *.live
+*.local
 *.bak
 *.tar
 *.tgz
+*.zip
 
 # Common local dependency/build directories
 node_modules/
-vendor/
 coverage/
 venv/
 .venv/
@@ -32,6 +43,15 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Runtime and generated data
+storage/*.log
+storage/*.ndjson
+storage/*.tmp
+storage/*.cache
+
 # Local-only project helpers
 CODEX_FIXES_BRIEF.md
 verify-contact-flow.sh
+
+# Test artifacts
+git-push-test.txt
