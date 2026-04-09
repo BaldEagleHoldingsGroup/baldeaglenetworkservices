@@ -21,7 +21,7 @@ $navItems = [
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= e($page['title']) ?></title>
   <meta name="description" content="<?= e($page['description']) ?>">
-  <meta name="google-site-verification" content="google8835ed66ad485540" />
+<meta name="google-site-verification" content="zRe35B9XcMCBqUIbQzKvDgZpZY2A7PvMiWrzArBo03w" />
   <meta name="robots" content="<?= e($page['robots'] ?? 'index,follow') ?>">
   <link rel="canonical" href="<?= e($page['canonical']) ?>">
   <meta name="theme-color" content="#0c1524">
