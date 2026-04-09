@@ -14,6 +14,7 @@ $navItems = [
     'service-area' => 'Service Area',
     'contact' => 'Contact',
 ];
+
 ?><!DOCTYPE html>
 <html lang="en">
 <head>
