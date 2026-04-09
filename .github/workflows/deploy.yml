@@ -20,7 +20,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Sync files to staging directory
+      - name: Sync files to server staging
         run: |
           rsync -az --delete \
             --exclude ".git/" \
@@ -30,15 +30,16 @@ jobs:
             --exclude "app/" \
             --exclude "systemd/" \
             --exclude "storage/" \
-            -e "ssh -i ~/.ssh/deploy_key" \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
             ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_TARGET }}/"
 
-      - name: Run server deploy script
+      - name: Run deploy script
         run: |
-          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             'sudo /usr/local/bin/deploy-network-site.sh'
 
-      - name: Smoke test homepage
+      - name: Smoke test
         run: |
           curl -fI https://baldeaglenetworkservices.com/
           curl -fI https://baldeaglenetworkservices.com/robots.txt
