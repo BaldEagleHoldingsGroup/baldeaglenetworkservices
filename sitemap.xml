@@ -5,14 +5,6 @@ require_once __DIR__ . '/includes/functions.php';
 
 header('Content-Type: application/xml; charset=UTF-8');
 
-$lastModified = gmdate(
-    'c',
-    max(
-        (int) @filemtime(__DIR__ . '/includes/page-definitions.php'),
-        (int) @filemtime(__FILE__)
-    )
-);
-
 $exclude = ['privacy-policy', 'terms'];
 $uniquePages = [];
 foreach (page_catalog() as $slug => $item) {
@@ -25,7 +17,10 @@ foreach (page_catalog() as $slug => $item) {
         continue;
     }
 
-    $uniquePages[$path] = $item;
+    $uniquePages[$path] = [
+        'slug' => $slug,
+        'path' => $path,
+    ];
 }
 
 echo '<?xml version="1.0" encoding="UTF-8"?>';
@@ -34,7 +29,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>';
 <?php foreach ($uniquePages as $item): ?>
   <url>
     <loc><?= e(absolute_url($item['path'])) ?></loc>
-    <lastmod><?= e($lastModified) ?></lastmod>
+    <lastmod><?= e(page_lastmod_iso8601($item['slug'], $item['path'])) ?></lastmod>
   </url>
 <?php endforeach; ?>
 </urlset>

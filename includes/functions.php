@@ -144,6 +144,36 @@ function normalize_page(array $page): array
     return $page;
 }
 
+function page_backing_file_path(string $slug, string $path): ?string
+{
+    if ($slug === 'home' || $path === '/') {
+        $candidate = dirname(__DIR__) . '/index.php';
+        return is_file($candidate) ? $candidate : null;
+    }
+
+    if (!preg_match('/^\/[a-z0-9\-]+\.php$/i', $path)) {
+        return null;
+    }
+
+    $candidate = dirname(__DIR__) . $path;
+    return is_file($candidate) ? $candidate : null;
+}
+
+function page_lastmod_iso8601(string $slug, string $path): string
+{
+    $fallback = max(
+        (int) @filemtime(dirname(__DIR__) . '/includes/page-definitions.php'),
+        (int) @filemtime(dirname(__DIR__) . '/sitemap.xml')
+    );
+
+    $backingFile = page_backing_file_path($slug, $path);
+    if ($backingFile !== null) {
+        $fallback = max($fallback, (int) @filemtime($backingFile));
+    }
+
+    return gmdate('c', $fallback);
+}
+
 function base_schemas(array $page): array
 {
     $config = site_config();
@@ -192,6 +222,27 @@ function base_schemas(array $page): array
             'url' => $config['site_url'],
         ],
     ];
+
+    if (($page['slug'] ?? '') !== 'home') {
+        $schemas[] = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => [
+                [
+                    '@type' => 'ListItem',
+                    'position' => 1,
+                    'name' => 'Home',
+                    'item' => absolute_url('/'),
+                ],
+                [
+                    '@type' => 'ListItem',
+                    'position' => 2,
+                    'name' => $page['title'],
+                    'item' => $page['canonical'],
+                ],
+            ],
+        ];
+    }
 
     if (!empty($page['faq_items'])) {
         $schemas[] = [
