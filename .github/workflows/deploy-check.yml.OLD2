@@ -1,0 +1,78 @@
+name: Deploy Check
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+
+          cat > ~/.ssh/deploy_key <<'EOF'
+${{ secrets.DEPLOY_SSH_KEY }}
+EOF
+
+          perl -pi -e 's/\r\n?/\n/g' ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null
+
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Validate SSH access
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o PubkeyAuthentication=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'whoami && pwd'
+
+      - name: Sync files to server staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -az --delete \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            --exclude "deploy/" \
+            --exclude "docs/" \
+            --exclude "app/" \
+            --exclude "systemd/" \
+            --exclude "storage/" \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o PubkeyAuthentication=yes -o StrictHostKeyChecking=yes" \
+            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_TARGET }}/"
+
+      - name: Run deploy script
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o PubkeyAuthentication=yes \
+            -o StrictHostKeyChecking=yes \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            'sudo /usr/local/bin/deploy-network-site.sh'
+
+      - name: Smoke test live site
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fI https://baldeaglenetworkservices.com/
+          curl -fI https://baldeaglenetworkservices.com/robots.txt
+          curl -fI https://baldeaglenetworkservices.com/sitemap.xml

@@ -1,10 +1,15 @@
 name: Deploy Check
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      allow_protected_deletes:
+        description: "Type YES_DELETE_PROTECTED_FILES to allow deployment when protected files were deleted"
+        required: false
+        default: ""
 
 jobs:
   deploy-check:
@@ -13,6 +18,106 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verify critical files exist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            ".htaccess"
+            "robots.txt"
+            "sitemap.php"
+            "sitemap.xml"
+            "assets/img/og-default.jpg"
+            "includes/header.php"
+            "includes/functions.php"
+            "includes/page-definitions.php"
+            ".github/workflows/deploy-check.yml"
+          )
+
+          missing=0
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "ERROR: Missing required file: $file"
+              missing=1
+            fi
+          done
+
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Deploy blocked: one or more critical files are missing."
+            exit 1
+          fi
+
+          echo "All critical files are present."
+
+      - name: Block protected file deletions unless explicitly approved
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          protected_files=(
+            ".htaccess"
+            "robots.txt"
+            "sitemap.php"
+            "sitemap.xml"
+            "assets/img/og-default.jpg"
+            "includes/header.php"
+            "includes/functions.php"
+            "includes/page-definitions.php"
+            ".github/workflows/deploy-check.yml"
+          )
+
+          # Determine diff base
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          else
+            BASE="HEAD~1"
+            HEAD="HEAD"
+          fi
+
+          if ! git rev-parse "$BASE" >/dev/null 2>&1; then
+            echo "Base commit $BASE not available; skipping protected deletion diff check."
+            exit 0
+          fi
+
+          mapfile -t deleted_files < <(git diff --name-status "$BASE" "$HEAD" | awk '$1 == "D" {print $2}')
+
+          if [[ "${#deleted_files[@]}" -eq 0 ]]; then
+            echo "No deleted files detected."
+            exit 0
+          fi
+
+          echo "Deleted files detected:"
+          printf ' - %s\n' "${deleted_files[@]}"
+
+          protected_deleted=0
+          for deleted in "${deleted_files[@]}"; do
+            for protected in "${protected_files[@]}"; do
+              if [[ "$deleted" == "$protected" ]]; then
+                echo "ERROR: Protected file deleted: $deleted"
+                protected_deleted=1
+              fi
+            done
+          done
+
+          if [[ "$protected_deleted" -eq 0 ]]; then
+            echo "No protected files were deleted."
+            exit 0
+          fi
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && [[ "${{ github.event.inputs.allow_protected_deletes }}" == "YES_DELETE_PROTECTED_FILES" ]]; then
+            echo "Protected deletions explicitly approved via workflow_dispatch override."
+            exit 0
+          fi
+
+          echo "Deploy blocked: protected files were deleted."
+          echo "If intentional, run this workflow manually and set allow_protected_deletes to YES_DELETE_PROTECTED_FILES."
+          exit 1
 
       - name: Setup SSH key
         shell: bash
@@ -76,3 +181,11 @@ EOF
           curl -fI https://baldeaglenetworkservices.com/
           curl -fI https://baldeaglenetworkservices.com/robots.txt
           curl -fI https://baldeaglenetworkservices.com/sitemap.xml
+
+      - name: Verify live SEO markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -s https://baldeaglenetworkservices.com/ | grep -q "google-site-verification"
+          curl -s https://baldeaglenetworkservices.com/ | grep -q "og:image"
+          curl -s https://baldeaglenetworkservices.com/sitemap.xml | grep -q "<urlset"
